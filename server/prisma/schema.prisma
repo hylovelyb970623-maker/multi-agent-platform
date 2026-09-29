@@ -1,0 +1,99 @@
+// dsAgent 平台数据模型
+// 设计理念:围绕「Agent → Task → Generation → Feedback」形成数据回流闭环
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+/// 智能体定义(市场里的一个 Agent)
+model Agent {
+  id           String   @id @default(cuid())
+  name         String
+  description  String
+  category     String   @default("ecommerce") // ecommerce|content|data|service
+  icon         String   @default("🤖")
+  cover        String?  // 封面(渐变色描述或URL)
+  featured     Boolean  @default(false) // 是否主打/置顶
+  usageCount   Int      @default(0) // 累计使用次数
+  rating       Float    @default(5.0) // 评分 0-5
+  /// 编排工作流 JSON 字符串(React Flow 结构)
+  workflowJson String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tasks        Task[]
+  templates    PromptTemplate[]
+
+  @@index([category])
+}
+
+/// 一次 Agent 执行任务
+model Task {
+  id        String     @id @default(cuid())
+  agentId   String
+  agent     Agent      @relation(fields: [agentId], references: [id])
+  status    String     @default("pending") // pending|running|success|failed
+  /// 用户输入(JSON: imageUrl, instruction)
+  input     String
+  /// 执行步骤(JSON 数组: perceive/think/act/output)
+  steps     String     @default("[]")
+  createdAt DateTime   @default(now())
+
+  generations Generation[]
+
+  @@index([agentId])
+  @@index([status])
+}
+
+/// Agent 生成的场景图
+model Generation {
+  id           String    @id @default(cuid())
+  taskId       String
+  task         Task      @relation(fields: [taskId], references: [id])
+  imageUrl     String
+  prompt       String    // 生成时使用的 prompt(回流关键)
+  scene        String    // 场景名:沙滩/办公室/街头...
+  status       String    @default("done") // pending|generating|done|failed|flagged
+  needsReview  Boolean   @default(false) // 是否需要人工介入(如手指畸形)
+  createdAt    DateTime  @default(now())
+
+  feedbacks    Feedback[]
+
+  @@index([taskId])
+}
+
+/// 反馈(👍/👎)—— 数据回流的核心载体
+model Feedback {
+  id             String   @id @default(cuid())
+  generationId   String
+  generation     Generation @relation(fields: [generationId], references: [id])
+  type           String   // up|down
+  reason         String?  // hand_deformity|scene_mismatch|...
+  note           String?  // 用户备注
+  /// 反馈时的 prompt 快照(作为负样本回流)
+  promptSnapshot String
+  createdAt      DateTime @default(now())
+
+  @@index([generationId])
+  @@index([type])
+}
+
+/// Prompt 模板版本(用于 A/B 与持续优化)
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  version   String   // v1, v2...
+  content   String
+  /// 该版本的效果指标(👍率等)
+  upRate    Float    @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+}

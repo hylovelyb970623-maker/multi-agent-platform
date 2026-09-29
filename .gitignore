@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+
+# data
+server/prisma/*.db
+server/prisma/*.db-journal
+server/uploads/
+
+# env
+.env
+.env.local
+*.local
+
+# editor
+.vscode/
+.idea/
+.DS_Store
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
